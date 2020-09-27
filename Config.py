@@ -29,7 +29,7 @@ class Config(object):
     batchSize = 128
     sequenceLength = 10  # 取了所有序列长度的均值
 
-    file_train = './data/2018 oppo_round1_test_20180929.txt'
+    file_train = './data/oppo_round1_test_A_20180929.txt'
     file_vali = './data/oppo_round1_vali_20180929.txt'
     vocab_path = "./data/vocab.txt"
 
@@ -37,7 +37,7 @@ class Config(object):
     pad = '[PAD]'
 
     vocab_map = load_vocab(vocab_path)
-
-    training = TrainingConfig()
-
-    model = ModelConfig()
+    vocab_size = len(vocab_map)
+    # training = TrainingConfig()
+    #
+    # model = ModelConfig()
