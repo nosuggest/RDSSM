@@ -20,7 +20,7 @@ class Config(object):
     embeddingSize = 128
     epoch = 40
     learningRate = 0.001
-    evaluateEvery = 3000
+    evaluateEvery = 1000
     checkpointEvery = 6000
 
     file_train = './data/oppo_round1_test_A_20180929.txt'
@@ -35,3 +35,5 @@ class Config(object):
 
     L1_N = 400
     L2_N = 120
+
+    hidden_size_rnn = 100

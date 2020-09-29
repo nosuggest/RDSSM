@@ -21,12 +21,10 @@ trainData, evalData = dataset.dataGen()
 
 train_epoch_steps = int(len(trainData) / Config.batchSize) - 1
 eval_epoch_steps = int(len(evalData) / Config.batchSize) - 1
+
 # 定义计算图
 with tf.Graph().as_default():
-    session_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False)
-    session_conf.gpu_options.allow_growth = True
-    session_conf.gpu_options.per_process_gpu_memory_fraction = 0.5  # 配置gpu占用率
-
+    session_conf = tf.ConfigProto(allow_soft_placement=True, log_device_placement=False, device_count={"CPU": 78})
     sess = tf.Session(config=session_conf)
 
     # 定义会话
@@ -51,7 +49,7 @@ with tf.Graph().as_default():
         outDir = os.path.abspath(os.path.join(os.path.curdir, "summarys"))
         print("Writing to {}\n".format(outDir))
 
-        lossSummary = tf.summary.scalar("loss", dssm.losses)
+        tf.summary.scalar("loss", dssm.losses)
         summaryOp = tf.summary.merge_all()
 
         trainSummaryDir = os.path.join(outDir, "train")
@@ -65,8 +63,8 @@ with tf.Graph().as_default():
 
         # 保存模型的一种方式，保存为pb文件
         savedModelPath = "../model/DSSM/savedModel"
-        if os.path.exists(savedModelPath):
-            os.rmdir(savedModelPath)
+        # if os.path.exists(savedModelPath):
+        #     os.rmdir(savedModelPath)
         builder = tf.saved_model.builder.SavedModelBuilder(savedModelPath)
 
         sess.run(tf.global_variables_initializer())
@@ -89,7 +87,7 @@ with tf.Graph().as_default():
                     dssm.on_train: on_training, dssm.keep_prob: drop_prob}
 
 
-        for i in range(config.epoch):
+        for ep in range(config.epoch):
             # 训练模型
             print("start training model")
             for batch_id in range(train_epoch_steps):
@@ -97,27 +95,29 @@ with tf.Graph().as_default():
                     [trainOp, summaryOp, globalStep, dssm.losses], feed_dict=feed_dict(True, trainData, batch_id, 0.5))
 
                 currentStep = tf.train.global_step(sess, globalStep)
+                trainSummaryWriter.add_summary(summary, step)
                 print("train: epoch: {}, step: {}, loss: {}".format(
-                    i, currentStep, loss))
+                    ep, currentStep, loss))
 
                 if currentStep % config.evaluateEvery == 0:
                     print("\nEvaluation:\n")
-                    epoch_loss = 0
-                    for i in range(eval_epoch_steps):
-                        loss_v = sess.run(dssm.losses, feed_dict=feed_dict(False, evalData, i, 1))
-                        epoch_loss += loss_v
-                    epoch_loss /= (eval_epoch_steps)
+                    eval_loss = 0
+                    for batchEval in range(eval_epoch_steps):
+                        loss_v = sess.run(dssm.losses, feed_dict=feed_dict(False, evalData, batchEval, 1))
+                        eval_loss += loss_v
+                    eval_loss /= (eval_epoch_steps)
 
                     time_str = datetime.datetime.now().isoformat()
                     print(
                         "eval: epoch: {}, {}, step: {}, loss: {}".format(
-                            i, time_str,
+                            ep, time_str,
                             currentStep,
-                            epoch_loss))
+                            eval_loss))
+                    evalSummaryWriter.add_summary(summary, step)
 
                 if currentStep % config.checkpointEvery == 0:
                     # 保存模型的另一种方法，保存checkpoint文件
-                    path = saver.save(sess, "../model/textCNN/model/my-model", global_step=currentStep)
+                    path = saver.save(sess, "../model/DSSM/model/my-model", global_step=currentStep)
                     print("Saved model checkpoint to {}\n".format(path))
 
         # 保存模型
