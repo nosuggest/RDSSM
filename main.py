@@ -91,28 +91,46 @@ with tf.Graph().as_default():
             # 训练模型
             print("start training model")
             for batch_id in range(train_epoch_steps):
-                _, summary, step, loss = sess.run(
-                    [trainOp, summaryOp, globalStep, dssm.losses], feed_dict=feed_dict(True, trainData, batch_id, 0.5))
+                _, summary, step, loss, predictions, labels = sess.run(
+                    [trainOp, summaryOp, globalStep, dssm.losses, dssm.predictions, dssm.labels],
+                    feed_dict=feed_dict(True, trainData, batch_id, 0.5))
 
                 currentStep = tf.train.global_step(sess, globalStep)
                 trainSummaryWriter.add_summary(summary, step)
-                print("train: epoch: {}, step: {}, loss: {}".format(
-                    ep, currentStep, loss))
+                acc, recall, prec, f_beta = get_binary_metrics(
+                    pred_y=predictions, true_y=labels)
+                print(
+                    "train: epoch: {}, step: {}, loss: {:.3f}, acc: {:.3f}, recall: {:.3f}, prec: {:.3f}, f_beta: {:.3f}".format(
+                        ep, currentStep, loss, acc, recall, prec, f_beta))
 
                 if currentStep % config.evaluateEvery == 0:
                     print("\nEvaluation:\n")
                     eval_loss = 0
+                    acc_evals, recall_evals, prec_evals, f_beta_evals = [], [], [], []
                     for batchEval in range(eval_epoch_steps):
-                        loss_v = sess.run(dssm.losses, feed_dict=feed_dict(False, evalData, batchEval, 1))
+                        loss_v, predictions, labels = sess.run([dssm.losses, dssm.predictions, dssm.labels],
+                                                               feed_dict=feed_dict(False, evalData, batchEval, 1))
                         eval_loss += loss_v
+                        acc_eval, recall_eval, prec_eval, f_beta_eval = get_binary_metrics(
+                            pred_y=predictions, true_y=labels)
+
+                        acc_evals.append(acc_eval)
+                        recall_evals.append(recall_eval)
+                        prec_evals.append(prec_eval)
+                        f_beta_evals.append(f_beta_eval)
                     eval_loss /= (eval_epoch_steps)
 
                     time_str = datetime.datetime.now().isoformat()
                     print(
-                        "eval: epoch: {}, {}, step: {}, loss: {}".format(
+                        "eval: epoch: {}, {}, sep: {}, loss: {:.3f}, acc: {:.3f}, recall: {:.3f}, prec: {:.3f}, f_beta: {:.3f}\n".format(
                             ep, time_str,
                             currentStep,
-                            eval_loss))
+                            eval_loss,
+                            mean(acc_evals),
+                            mean(recall_evals),
+                            mean(prec_evals),
+                            mean(f_beta_evals),
+                        ))
                     evalSummaryWriter.add_summary(summary, step)
 
                 if currentStep % config.checkpointEvery == 0:

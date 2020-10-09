@@ -18,6 +18,7 @@ class DSSM():
             self.doc_label_batch = tf.placeholder(tf.float32, shape=[None], name='review_label_batch')
             self.on_train = tf.placeholder(tf.bool)
             self.keep_prob = tf.placeholder(tf.float32, name='drop_out_prob')
+            self.weighted_loss = 4
 
         with tf.name_scope('FC1'):
             query_l1 = self.add_layer(self.query_batch, nwords, config.L1_N, activation_function=None)
@@ -32,24 +33,39 @@ class DSSM():
             doc_l1 = tf.nn.dropout(doc_l1, self.keep_prob)
 
         with tf.name_scope('FC2'):
-            query_l2 = self.add_layer(query_l1, config.L1_N, config.L2_N, activation_function=tf.nn.tanh)
-            doc_l2 = self.add_layer(doc_l1, config.L1_N, config.L2_N, activation_function=tf.nn.tanh)
+            query_l2 = self.add_layer(query_l1, config.L1_N, config.L2_N, activation_function=None)
+            doc_l2 = self.add_layer(doc_l1, config.L1_N, config.L2_N, activation_function=None)
 
         with tf.name_scope('BN2'):
             query_l2 = self.batch_normalization(query_l2, self.on_train, config.L2_N)
             doc_l2 = self.batch_normalization(doc_l2, self.on_train, config.L2_N)
+
+        with tf.name_scope('ACT'):
+            query_l2 = tf.nn.leaky_relu(query_l2)
+            doc_l2 = tf.nn.leaky_relu(doc_l2)
             self.query_pred = query_l2
             self.doc_pred = doc_l2
 
         with tf.name_scope('Cosine_Similarity'):
             # Cosine similarity
             self.cos_sim = self.get_cosine_score(self.query_pred, self.doc_pred)
-            cos_sim_prob = tf.clip_by_value(self.cos_sim, 1e-8, 1.0)
+            # cos_sim_prob = tf.clip_by_value(self.cos_sim, 1e-8, 1.0)
 
         with tf.name_scope('Loss'):
             # Train Loss
-            cross_entropy = tf.nn.sigmoid_cross_entropy_with_logits(labels=self.doc_label_batch, logits=self.cos_sim)
-            self.losses = tf.reduce_sum(cross_entropy)
+            self.predictions = tf.cast(tf.greater_equal(self.cos_sim, 0.0), tf.int32, name="predictions")
+            self.labels = self.doc_label_batch
+
+            # weighted loss
+            self.losses = -tf.reduce_mean(
+                self.weighted_loss * self.doc_label_batch * tf.log(
+                    tf.clip_by_value(tf.nn.sigmoid(self.cos_sim), 1e-10, 1.0)) + (
+                        1 - self.doc_label_batch) * tf.log(
+                    tf.clip_by_value(1 - tf.nn.sigmoid(self.cos_sim), 1e-10, 1.0)))
+
+            # self.losses = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
+            #     logits=tf.cast(tf.reshape(self.cos_sim, [-1, 1]), dtype=tf.float32),
+            #     labels=tf.cast(tf.reshape(self.doc_label_batch, [-1, 1]), dtype=tf.float32)))
 
     def add_layer(self, inputs, in_size, out_size, activation_function=None):
         wlimit = np.sqrt(6.0 / (in_size + out_size))

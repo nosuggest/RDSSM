@@ -2,8 +2,8 @@
 # encoding: utf-8
 '''
 @author: slade
-@file: dssm.py
-@time: 2020/9/26 15:59
+@file: dssm_rnn.py
+@time: 2020/9/26 19:59
 @desc:
 '''
 import tensorflow as tf
@@ -11,7 +11,7 @@ import numpy as np
 from Config import Config
 
 
-class DSSM():
+class RDSSM():
     def __init__(self, config, nwords):
         with tf.name_scope('input'):
             self.title_batch = tf.placeholder(tf.int32, shape=[None, None], name='title_batch')
