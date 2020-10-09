@@ -16,22 +16,29 @@ class DSSM():
             self.query_batch = tf.placeholder(tf.float32, shape=[None, None], name='title_batch')
             self.doc_batch = tf.placeholder(tf.float32, shape=[None, None], name='review_batch')
             self.doc_label_batch = tf.placeholder(tf.float32, shape=[None], name='review_label_batch')
-            self.on_train = tf.placeholder(tf.bool)
+            self.on_train = tf.placeholder(tf.bool, name='on_train')
             self.keep_prob = tf.placeholder(tf.float32, name='drop_out_prob')
-            self.weighted_loss = 4
+            self.weighted_loss = 1
 
+        # embedding
         with tf.name_scope('FC1'):
             query_l1 = self.add_layer(self.query_batch, nwords, config.L1_N, activation_function=None)
             doc_l1 = self.add_layer(self.doc_batch, nwords, config.L1_N, activation_function=None)
 
+        # dense
         with tf.name_scope('BN1'):
             query_l1 = self.batch_normalization(query_l1, self.on_train, config.L1_N)
             doc_l1 = self.batch_normalization(doc_l1, self.on_train, config.L1_N)
+
+        with tf.name_scope('ACT1'):
+            query_l1 = tf.nn.leaky_relu(query_l1)
+            doc_l1 = tf.nn.leaky_relu(doc_l1)
 
         with tf.name_scope('Drop_out'):
             query_l1 = tf.nn.dropout(query_l1, self.keep_prob)
             doc_l1 = tf.nn.dropout(doc_l1, self.keep_prob)
 
+        # dense
         with tf.name_scope('FC2'):
             query_l2 = self.add_layer(query_l1, config.L1_N, config.L2_N, activation_function=None)
             doc_l2 = self.add_layer(doc_l1, config.L1_N, config.L2_N, activation_function=None)
@@ -40,7 +47,7 @@ class DSSM():
             query_l2 = self.batch_normalization(query_l2, self.on_train, config.L2_N)
             doc_l2 = self.batch_normalization(doc_l2, self.on_train, config.L2_N)
 
-        with tf.name_scope('ACT'):
+        with tf.name_scope('ACT2'):
             query_l2 = tf.nn.leaky_relu(query_l2)
             doc_l2 = tf.nn.leaky_relu(doc_l2)
             self.query_pred = query_l2
@@ -59,9 +66,9 @@ class DSSM():
             # weighted loss
             self.losses = -tf.reduce_mean(
                 self.weighted_loss * self.doc_label_batch * tf.log(
-                    tf.clip_by_value(tf.nn.sigmoid(self.cos_sim), 1e-10, 1.0)) + (
+                    tf.clip_by_value(tf.nn.sigmoid(self.cos_sim), 1e-8, 1.0)) + (
                         1 - self.doc_label_batch) * tf.log(
-                    tf.clip_by_value(1 - tf.nn.sigmoid(self.cos_sim), 1e-10, 1.0)))
+                    tf.clip_by_value(1 - tf.nn.sigmoid(self.cos_sim), 1e-8, 1.0)))
 
             # self.losses = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
             #     logits=tf.cast(tf.reshape(self.cos_sim, [-1, 1]), dtype=tf.float32),
@@ -90,7 +97,7 @@ class DSSM():
             gamma = tf.Variable(tf.constant(1.0, shape=[out_size]),
                                 name='gamma', trainable=True)
             batch_mean, batch_var = tf.nn.moments(x, [0], name='moments')
-            ema = tf.train.ExponentialMovingAverage(decay=0.5)
+            ema = tf.train.ExponentialMovingAverage(decay=0.99)
 
             def mean_var_with_update():
                 ema_apply_op = ema.apply([batch_mean, batch_var])
