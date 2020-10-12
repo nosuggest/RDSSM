@@ -13,8 +13,8 @@ import numpy as np
 
 # config = Config()
 _vocab_map = load_vocab(Config.vocab_path)
-query = "哪款游戏在你心中永远无法被超越？"
-doc = "合金装备"
+query = "香芋味酸奶卷，好想吃一口#不可辜负的美食##美食分享# @微博热视频 @微博美食"
+doc = "你的美食我的胖"
 
 query_list = convert_word2id(query, _vocab_map)
 doc_list = convert_word2id(doc, _vocab_map)
@@ -44,3 +44,5 @@ with graph.as_default():
 
         pred, prob = sess.run([predictions, cos_scores],
                               feed_dict={query_batch: query_in, doc_batch: doc_in, on_train: False, keep_prob: 1.0})
+        print("pred：{}".format(pred))
+        print("prob：{}".format(prob))
